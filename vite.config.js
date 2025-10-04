@@ -10,10 +10,6 @@ export default defineConfig({
     }
   },
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks: undefined
-      }
-    }
+    outDir: 'docs'  // Build to docs instead of dist
   }
 })
