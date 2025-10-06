@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymizer Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4a9eff;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 2rem;
+        }
+        .test {
+            background: #2a2a2a;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 8px;
+            border-left: 4px solid #666;
+        }
+        .test.pass {
+            border-left-color: #4ade80;
+        }
+        .test.fail {
+            border-left-color: #ef4444;
+        }
+        .test-name {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        .test-error {
+            color: #ef4444;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+        .test-details {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: #1a1a1a;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .summary {
+            background: #2a2a2a;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .summary.pass {
+            border: 2px solid #4ade80;
+        }
+        .summary.fail {
+            border: 2px solid #ef4444;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #3a8eef;
+        }
+        button:disabled {
+            background: #3a3a3a;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .loading {
+            color: #4a9eff;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Code Anonymizer Test Suite</h1>
+    <p class="subtitle">Automated tests for PHP, JavaScript, Python, and SQL anonymization</p>
+    <button onclick="runTests()" id="runBtn">Run All Tests</button>
+    <div id="results"></div>
+
+    <script type="module">
+        import { Anonymizer } from './src/anonymizer/core.js'
+        
+        window.runTests = async function() {
+            const resultsDiv = document.getElementById('results')
+            const runBtn = document.getElementById('runBtn')
+            
+            runBtn.disabled = true
+            resultsDiv.innerHTML = '<p class="loading">⏳ Running tests...</p>'
+            
+            const tests = []
+            let passed = 0
+            let failed = 0
+
+            function test(name, fn) {
+                tests.push({ name, fn })
+            }
+
+            function assertIncludes(actual, expected, message = '') {
+                if (!actual.includes(expected)) {
+                    throw new Error(`${message}\n\n❌ Expected to include:\n${expected}\n\n📄 Not found in output`)
+                }
+            }
+
+            function assertEqual(actual, expected, message = '') {
+                if (actual !== expected) {
+                    throw new Error(`${message}\n\n❌ Expected: ${expected}\n✅ Actual: ${actual}`)
+                }
+            }
+
+            // ==================== TEST 1 ====================
+            test('PHP + SQL mixed code with string literals', () => {
+                const anonymizer = new Anonymizer()
+                
+                const input = `<?php
+
+if(isset($_POST["btn_login"]))
+{
+\t$username = mysql_real_escape_string($_POST["username"]);
+\t$password = mysql_real_escape_string(md5($_POST["password"]));
+
+\t$query = "SELECT *
+\t\t\t  FROM administratori
+\t\t\t  WHERE username LIKE '$username'
+\t\t\t  AND password = '$password'";
+\t\t\t  
+\t$result = mysql_query($query) or die (mysql_error());
+
+\t$br_row = mysql_num_rows($result);
+
+}
+else
+{
+\tinclude("login_interface.php");
+\texit;
+}
+
+
+?>`
+
+                const result = anonymizer.process(input, 'php')
+                
+                // Check built-in functions are preserved
+                assertIncludes(result.code, 'mysql_real_escape_string', 'Should preserve mysql_real_escape_string')
+                assertIncludes(result.code, 'md5', 'Should preserve md5')
+                assertIncludes(result.code, 'mysql_query', 'Should preserve mysql_query')
+                assertIncludes(result.code, 'isset', 'Should preserve isset')
+                assertIncludes(result.code, 'mysql_num_rows', 'Should preserve mysql_num_rows')
+                assertIncludes(result.code, 'mysql_error', 'Should preserve mysql_error')
+                assertIncludes(result.code, 'die', 'Should preserve die')
+                assertIncludes(result.code, 'include', 'Should preserve include')
+                assertIncludes(result.code, 'exit', 'Should preserve exit')
+                
+                // Check variables ARE anonymized
+                assertIncludes(result.code, '$variable_', 'Should anonymize variables')
+                
+                // Check SQL table names are anonymized
+                assertIncludes(result.code, 'table_', 'Should anonymize table names in SQL')
+                
+                // Check SQL column names are anonymized
+                assertIncludes(result.code, 'column_', 'Should anonymize column names in SQL')
+                
+                // Check string literals in arrays are anonymized
+                assertIncludes(result.code, '"string_', 'Should anonymize string literals in array access')
+                
+                // Built-in superglobal $_POST should be preserved
+                assertIncludes(result.code, '$_POST', 'Should preserve $_POST superglobal')
+                
+                // Original variable names should NOT appear (except in $_POST context)
+                const hasOriginalUsername = result.code.includes('$username') && 
+                                           !result.code.match(/\$_POST\["[^"]*"\]/)
+                assertEqual(hasOriginalUsername, false, 'Should not contain original $username variable')
+                
+                return result
+            })
+
+            // ==================== TEST 2 ====================
+            test('Simple Python function', () => {
+                const anonymizer = new Anonymizer()
+                
+                const input = `def calculate_total(price, tax_rate):
+    return price * (1 + tax_rate)`
+
+                const result = anonymizer.process(input, 'python')
+                
+                assertIncludes(result.code, 'def function_', 'Should anonymize function name')
+                assertIncludes(result.code, 'variable_', 'Should anonymize parameters')
+                assertEqual(result.code.includes('calculate_total'), false, 'Should not contain original function name')
+                
+                return result
+            })
+
+            // ==================== TEST 3 ====================
+            test('JavaScript with multiple variable types', () => {
+                const anonymizer = new Anonymizer()
+                
+                const input = `const userName = "John";
+let userAge = 25;
+var isActive = true;
+
+function getUserInfo(id) {
+  return { userName, userAge };
+}`
+
+                const result = anonymizer.process(input, 'javascript')
+                
+                assertIncludes(result.code, 'const variable_', 'Should anonymize const variables')
+                assertIncludes(result.code, 'let variable_', 'Should anonymize let variables')
+                assertIncludes(result.code, 'var variable_', 'Should anonymize var variables')
+                assertIncludes(result.code, 'function function_', 'Should anonymize function names')
+                
+                return result
+            })
+
+            // ==================== TEST 4 ====================
+            test('SQL with joins and complex queries', () => {
+                const anonymizer = new Anonymizer()
+                
+                const input = `SELECT u.user_id, u.email, o.order_total
+FROM users u
+JOIN orders o ON u.user_id = o.user_id
+WHERE u.is_active = 1
+AND o.order_date > '2024-01-01'`
+
+                const result = anonymizer.process(input, 'sql')
+                
+                assertIncludes(result.code, 'FROM table_', 'Should anonymize table names after FROM')
+                assertIncludes(result.code, 'JOIN table_', 'Should anonymize table names after JOIN')
+                assertIncludes(result.code, 'column_', 'Should anonymize column names')
+                assertIncludes(result.code, 'SELECT', 'Should preserve SQL keywords')
+                
+                return result
+            })
+
+            // ==================== TEST 5 ====================
+            test('Preserve built-in PHP superglobals', () => {
+                const anonymizer = new Anonymizer()
+                
+                const input = `$user = $_POST['username'];
+$session = $_SESSION['user_id'];
+$cookie = $_COOKIE['token'];
+$server = $_SERVER['REQUEST_METHOD'];`
+
+                const result = anonymizer.process(input, 'php')
+                
+                assertIncludes(result.code, '$_POST', 'Should preserve $_POST')
+                assertIncludes(result.code, '$_SESSION', 'Should preserve $_SESSION')
+                assertIncludes(result.code, '$_COOKIE', 'Should preserve $_COOKIE')
+                assertIncludes(result.code, '$_SERVER', 'Should preserve $_SERVER')
+                
+                return result
+            })
+
+            // ==================== TEST 6 ====================
+            test('Mapping consistency - same names get same anonymization', () => {
+                const anonymizer = new Anonymizer()
+                
+                const input = `def calculate(price):
+    tax = price * 0.1
+    total = price + tax
+    return total`
+
+                const result = anonymizer.process(input, 'python')
+                const mapping = result.mapping
+                
+                // Get the anonymized name for 'price'
+                const priceKey = 'variable:price'
+                const anonymizedPrice = mapping.get(priceKey)
+                
+                if (!anonymizedPrice) {
+                    throw new Error('Price variable not found in mapping')
+                }
+                
+                // Count occurrences of anonymized price in output
+                const regex = new RegExp(anonymizedPrice.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                const matches = result.code.match(regex)
+                
+                if (!matches || matches.length !== 3) {
+                    throw new Error(`Expected 'price' to be consistently anonymized 3 times, but found ${matches ? matches.length : 0} occurrences\n\nAnonymized as: ${anonymizedPrice}\nOutput:\n${result.code}`)
+                }
+                
+                return result
+            })
+
+            // ==================== TEST 7 ====================
+            test('String literals in array access', () => {
+                const anonymizer = new Anonymizer()
+                
+                const input = `$name = $_POST["user_name"];
+$email = $_POST["user_email"];
+$data = $array["some_key"];`
+
+                const result = anonymizer.process(input, 'php')
+                
+                // String literals should be anonymized
+                assertIncludes(result.code, '"string_', 'Should anonymize string literals in array access')
+                
+                // But $_POST superglobal should be preserved
+                assertIncludes(result.code, '$_POST', 'Should preserve $_POST superglobal')
+                
+                return result
+            })
+
+            // ==================== RUN ALL TESTS ====================
+            let html = ''
+            for (const t of tests) {
+                try {
+                    const result = await t.fn()
+                    passed++
+                    html += `
+                        <div class="test pass">
+                            <div class="test-name">✅ ${t.name}</div>
+                        </div>
+                    `
+                    console.log(`✅ PASS: ${t.name}`)
+                    if (result && result.code) {
+                        console.log('Output:', result.code)
+                    }
+                } catch (error) {
+                    failed++
+                    html += `
+                        <div class="test fail">
+                            <div class="test-name">❌ ${t.name}</div>
+                            <div class="test-error">${error.message}</div>
+                        </div>
+                    `
+                    console.error(`❌ FAIL: ${t.name}`, error)
+                }
+            }
+
+            const summaryClass = failed === 0 ? 'pass' : 'fail'
+            const summaryIcon = failed === 0 ? '✅' : '❌'
+            const summaryMessage = failed === 0 
+                ? 'All tests passed! Your anonymizer is working correctly.' 
+                : 'Some tests failed. Please check the implementation.'
+            
+            html += `
+                <div class="summary ${summaryClass}">
+                    ${summaryIcon} Results: ${passed} passed, ${failed} failed out of ${tests.length} tests
+                    <div style="margin-top: 0.5rem; font-size: 0.9rem; font-weight: normal;">
+                        ${summaryMessage}
+                    </div>
+                </div>
+            `
+
+            resultsDiv.innerHTML = html
+            runBtn.disabled = false
+            
+            console.log(`\n📊 Final Results: ${passed}/${tests.length} tests passed`)
+        }
+    </script>
+</body>
+</html>
